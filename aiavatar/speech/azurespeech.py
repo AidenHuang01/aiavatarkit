@@ -23,7 +23,7 @@ class AzureSpeechController(SpeechControllerBase):
     async def download(self, voice: VoiceClip):
         url = self.base_url.format(region=self.region)
         headers = {
-            "X-Microsoft-OutputFormat": "riff-16khz-16bit-mono-pcm",
+            "X-Microsoft-OutputFormat": "riff-24khz-16bit-mono-pcm",
             "Content-Type": "application/ssml+xml",
             "Ocp-Apim-Subscription-Key": self.api_key
         }

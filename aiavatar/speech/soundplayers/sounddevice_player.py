@@ -17,14 +17,21 @@ if __name__ == "__main__":
             raise Exception("No sound data")
 
         with wave.open(io.BytesIO(data), "rb") as f:
+            format_tag = f.getcomptype()
+            nchannels = f.getnchannels()
+            sampwidth = f.getsampwidth()
+            framerate = f.getframerate()
+
+            if format_tag not in ('NONE', ''):
+                raise Exception(f"unsupported format: {format_tag}")
+
             data = numpy.frombuffer(
                 f.readframes(f.getnframes()),
                 dtype=numpy.int16
             )
-            framerate = f.getframerate()
             sounddevice.play(data, framerate, device=device_index)
             sounddevice.wait()
-    
+
     except Exception as ex:
         sys.stderr.write(f"{ex}\ndevice_index: {device_index}\n")
         sys.exit(1)
