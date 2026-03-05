@@ -27,7 +27,7 @@ class AzureSpeechController(SpeechControllerBase):
             "Content-Type": "application/ssml+xml",
             "Ocp-Apim-Subscription-Key": self.api_key
         }
-        ssml_text = f"<speak version='1.0' xml:lang='{self.lang}'><voice xml:lang='{self.lang}' xml:gender='{self.speaker_gender}' name='{self.speaker_name}'>{voice.text}</voice></speak>"
+        ssml_text = f"<speak version='1.0' xml:lang='{self.lang}' xmlns:mstts='https://www.w3.org/2001/mstts'><voice xml:lang='{self.lang}' xml:gender='{self.speaker_gender}' name='{self.speaker_name}'><mstts:express-as style='warm' styledegree='1.5'><prosody pitch='+12%' rate='+5%' volume='100'>{voice.text}</prosody></mstts:express-as></voice></speak>"
         data = ssml_text.encode("utf-8")
 
         async with aiohttp.ClientSession() as session:
