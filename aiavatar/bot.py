@@ -151,7 +151,7 @@ class AIAvatar:
                 else:
                     request_text = await self.request_listener.get_request()
                     if not request_text:
-                        break
+                        continue  # Keep listening instead of breaking
 
                 logger.info(f"User: {request_text}")
                 logger.info("AI:")
