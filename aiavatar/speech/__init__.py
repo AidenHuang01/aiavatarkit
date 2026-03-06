@@ -69,11 +69,16 @@ class SpeechControllerBase(SpeechController):
         return v
 
     async def speak(self, text: str):
+        # 过滤掉过短或只包含标点的文本
+        if not text or len(text.strip()) == 0 or text.strip() in ['。', '，', '.', ',', '、', '？', '！', '?', '!']:
+            self.logger.debug(f"Skipping TTS for invalid/short text: '{text}'")
+            return
+
         voice = self.prefetch(text)
-        
+
         if not voice.audio_clip:
             await voice.download_task
-        
+
         try:
             self._is_speaking = True
 

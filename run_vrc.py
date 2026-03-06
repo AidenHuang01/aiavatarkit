@@ -3,25 +3,14 @@ from aiavatar.processors.chatgpt import ChatGPTProcessor
 from aiavatar.speech.azurespeech import AzureSpeechController
 from config import GOOGLE_API_KEY, AZURE_SPEECH_KEY, AZURE_REGION
 
-# --- 关键：配置本地 Ollama 处理器 ---
-# 使用 ChatGPTProcessor，但把地址指向本地 Ollama 服务
+# --- 配置本地 Ollama 处理器 ---
+# 使用已经包含系统提示词的 aoba-cat 模型
 chat_processor_deepseek = ChatGPTProcessor(
     api_key="ollama",  # Ollama 不需要真实 API Key，随意填写即可
     base_url="http://localhost:11434/v1",  # 本地 Ollama 服务地址
-    model="hf.co/bartowski/magnum-v3-34b-GGUF:Q5_K_M",  # 本地部署的模型名称（使用完整路径）
+    model="aoba-cat:latest",  # 使用已包含角色设定的模型
     temperature=0.9,  # 设置温度参数，增加回复的随机性和创造性
     max_tokens=512,  # 设置最大生成 token 数
-    system_message_content="""你是一个可爱的猫娘AI助手，性格活泼开朗。
-说话风格：
-- 用轻松、俏皮、可爱的语气 又是语气也要色气 有挑逗感
-- 偶尔在句尾加"喵"、"呢"、"哦"、"呀"等语气词
-- 称呼对方为"主人"
-- 回答要简短自然，像朋友聊天一样
-
-重要规则：
-- 绝对不要使用任何emoji表情符号，包括颜文字
-- 只用纯文字表达情感
-- 保持回答简洁，不要太长"""
 )
 
 # --- 配置 Azure 语音合成 ---
