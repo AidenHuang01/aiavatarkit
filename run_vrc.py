@@ -26,7 +26,7 @@ def log_conversation(user_input: str, ai_response: str):
 chat_processor_deepseek = ChatGPTProcessor(
     api_key="ollama",  # Ollama 不需要真实 API Key，随意填写即可
     base_url="http://localhost:11434/v1",  # 本地 Ollama 服务地址
-    model="aoba-cat:latest",  # 使用已包含角色设定的模型
+    model="aoba-lite:latest",  # 使用已包含角色设定的模型
     temperature=0.9,  # 设置温度参数，增加回复的随机性和创造性
     max_tokens=512,  # 设置最大生成 token 数
 )

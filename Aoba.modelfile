@@ -1,5 +1,5 @@
 # 指向你已经下载好的模型
-FROM hf.co/bartowski/magnum-v3-34b-GGUF:Q5_K_M
+FROM hf.co/bartowski/magnum-v3-34b-GGUF:Q4_K_M
 
 # 植入你的“青叶”灵魂
 SYSTEM """
