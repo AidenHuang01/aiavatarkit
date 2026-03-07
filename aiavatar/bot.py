@@ -159,6 +159,9 @@ class AIAvatar:
                 avatar_task = asyncio.create_task(self.avatar_controller.start())
 
                 stream_buffer = ""
+                last_sentence_time = asyncio.get_event_loop().time()
+                sentence_timeout = 5.0  # 5秒超时
+
                 async for t in self.chat_processor.chat(request_text):
                     stream_buffer += t
                     for spc in self.split_chars:
@@ -169,6 +172,14 @@ class AIAvatar:
                         stream_buffer = "".join(sp)
                         self.avatar_controller.set_text(sentence)
                         response_text += sentence
+                        last_sentence_time = asyncio.get_event_loop().time()  # 重置计时器
+
+                    # 检查是否超时
+                    current_time = asyncio.get_event_loop().time()
+                    if current_time - last_sentence_time > sentence_timeout:
+                        logger.warning(f"Response timeout: no complete sentence in {sentence_timeout}s, ending conversation")
+                        break
+
                     await asyncio.sleep(0.01)   # wait slightly in every loop not to use up CPU
 
                 if stream_buffer:
