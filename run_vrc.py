@@ -4,6 +4,7 @@ from aiavatar.processors.grok import GrokProcessor
 from aiavatar.speech.gptsovits import GPTSoVITSSpeechController
 from aiavatar.listeners.soniox import SonioxVoiceRequestListener
 from config import GOOGLE_API_KEY, SONIOX_API_KEY, GROK_API_KEY
+from modelfile_config import get_aoba_config
 from datetime import datetime
 import os
 
@@ -31,13 +32,17 @@ def log_conversation(user_input: str, ai_response: str):
 # 选择 LLM 服务: "ollama", "grok"
 LLM_SERVICE = "grok"  # 修改这里来切换 LLM 服务
 
+# 加载 Aoba 配置
+aoba_config = get_aoba_config('Aoba.modelfile')
+
 if LLM_SERVICE == "grok":
     # Grok (xAI) 处理器
     chat_processor = GrokProcessor(
         api_key=GROK_API_KEY,
         model="grok-4-1-fast-non-reasoning",  # 使用 grok-4-latest (fast non-reasoning)
-        temperature=0.9,
+        temperature=aoba_config['temperature'],
         max_tokens=512,
+        system_message_content=aoba_config['system_prompt']
     )
 elif LLM_SERVICE == "ollama":
     # 本地 Ollama 处理器
@@ -45,7 +50,7 @@ elif LLM_SERVICE == "ollama":
         api_key="ollama",
         base_url="http://localhost:11434/v1",
         model="aoba-lite:latest",
-        temperature=0.9,
+        temperature=aoba_config['temperature'],
         max_tokens=512,
     )
 else:
@@ -56,17 +61,17 @@ else:
 STT_SERVICE = "soniox"  # 修改这里来切换语音识别服务
 
 if STT_SERVICE == "soniox":
-    # Soniox 语音识别
+    # Soniox 语音识别 - 优化配置
     request_listener = SonioxVoiceRequestListener(
         api_key=SONIOX_API_KEY,
         volume_threshold=-50,
-        timeout=0.8,
-        detection_timeout=10.0,
+        timeout=0.5,  # 更快的静音检测 (从 0.8 降到 0.5)
+        detection_timeout=5.0,  # 更短的超时 (从 10 降到 5)
         lang="zh",
         rate=16000,
         device_index=INPUT_DEVICE,
-        enable_speaker_diarization=True,  # 启用说话者识别
-        primary_speaker_strategy="longest"  # 选择说话最多的人作为主要说话者
+        enable_speaker_diarization=False,  # 禁用说话者识别以提速
+        primary_speaker_strategy="first"
     )
 else:
     # 使用 Google 语音识别（默认）
@@ -91,7 +96,7 @@ app = AIAvatar(
     request_listener=request_listener,  # 使用配置的语音识别服务
     input_device=INPUT_DEVICE,
     language="zh-CN",  # 设置为中文
-    start_voice="猫娘系统初始化完毕,青叶已上线~和我对话吧主人",  # 启动时的回应
+    start_voice="猫娘系统初始化完毕~和我对话吧主人",  # 启动时的回应
 )
 
 # --- 设置对话结束回调，记录日志 ---
