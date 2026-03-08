@@ -49,19 +49,32 @@ class GPTSoVITSSpeechController(SpeechControllerBase):
 
     async def download(self, voice: VoiceClip):
         """Download audio from GPT-SoVITS API"""
+        # 将语言名称转换为语言代码
+        def convert_lang(lang: str) -> str:
+            lang_map = {
+                "中文": "zh",
+                "英文": "en",
+                "日文": "ja",
+                "日语": "ja",
+                "韩文": "ko",
+                "韩语": "ko"
+            }
+            return lang_map.get(lang, lang)
+
         params = {
-            "refer_wav_path": self.refer_wav_path,
-            "prompt_text": self.prompt_text,
-            "prompt_language": self.prompt_language,
             "text": voice.text,
-            "text_language": self.text_language
+            "text_lang": convert_lang(self.text_language),
+            "ref_audio_path": self.refer_wav_path,
+            "prompt_text": self.prompt_text,
+            "prompt_lang": convert_lang(self.prompt_language)
         }
 
-        url = f"{self.base_url}?{urlencode(params)}"
+        url = f"{self.base_url}/tts?{urlencode(params)}"
 
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as response:
                 if response.status == 200:
                     voice.audio_clip = await response.read()
                 else:
-                    raise Exception(f"GPT-SoVITS API error: {response.status}")
+                    error_text = await response.text()
+                    raise Exception(f"GPT-SoVITS API error: {response.status} - {error_text}")

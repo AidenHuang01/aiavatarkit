@@ -1,14 +1,19 @@
 from aiavatar import AIAvatar
 from aiavatar.processors.chatgpt import ChatGPTProcessor
+from aiavatar.processors.grok import GrokProcessor
 from aiavatar.speech.gptsovits import GPTSoVITSSpeechController
 from aiavatar.listeners.soniox import SonioxVoiceRequestListener
-from config import GOOGLE_API_KEY, SONIOX_API_KEY
+from config import GOOGLE_API_KEY, SONIOX_API_KEY, GROK_API_KEY
+from modelfile_config import parse_modelfile
 from datetime import datetime
 import os
 
 # --- 音频设备配置 ---
-INPUT_DEVICE = 1   # 对应 CABLE Output (听 VRChat 里的声音)
+INPUT_DEVICE = 10   # 对应 CABLE Output (听 VRChat 里的声音)
 OUTPUT_DEVICE = 21  # 对应 CABLE Input (说话给 VRChat 听)
+
+# --- 加载 Modelfile 配置 ---
+modelfile_config = parse_modelfile('Aoba.modelfile')
 
 # --- 创建日志目录和文件 ---
 log_dir = os.path.join(os.path.dirname(__file__), 'chat_logs')
@@ -26,15 +31,29 @@ def log_conversation(user_input: str, ai_response: str):
         f.write(f"User: {user_input}\n")
         f.write(f"AI: {ai_response}\n")
 
-# --- 配置本地 Ollama 处理器 ---
-# 使用已经包含系统提示词的 aoba-cat 模型
-chat_processor_deepseek = ChatGPTProcessor(
-    api_key="ollama",  # Ollama 不需要真实 API Key，随意填写即可
-    base_url="http://localhost:11434/v1",  # 本地 Ollama 服务地址
-    model="aoba-lite:latest",  # 使用已包含角色设定的模型
-    temperature=0.9,  # 设置温度参数，增加回复的随机性和创造性
-    max_tokens=512,  # 设置最大生成 token 数
-)
+# --- 配置 LLM 处理器 ---
+# 选择 LLM 服务: "ollama", "grok"
+LLM_SERVICE = "grok"  # 修改这里来切换 LLM 服务
+
+if LLM_SERVICE == "grok":
+    # Grok (xAI) 处理器 - 使用 modelfile 配置
+    chat_processor = GrokProcessor(
+        api_key=GROK_API_KEY,
+        model="grok-4-1-fast-non-reasoning",
+        max_tokens=512,
+        system_message_content=modelfile_config['system_prompt'],
+    )
+elif LLM_SERVICE == "ollama":
+    # 本地 Ollama 处理器
+    chat_processor = ChatGPTProcessor(
+        api_key="ollama",
+        base_url="http://localhost:11434/v1",
+        model="aoba-lite:latest",
+        temperature=0.9,
+        max_tokens=512,
+    )
+else:
+    raise ValueError(f"Unknown LLM service: {LLM_SERVICE}")
 
 # --- 配置语音识别 ---
 # 选择语音识别服务: "soniox" 或 "google"
@@ -69,7 +88,7 @@ speech_controller = GPTSoVITSSpeechController(
 # --- 初始化 AIAvatar ---
 app = AIAvatar(
     google_api_key=GOOGLE_API_KEY,
-    chat_processor=chat_processor_deepseek,
+    chat_processor=chat_processor,
     speech_controller=speech_controller,
     request_listener=request_listener,  # 使用配置的语音识别服务
     input_device=INPUT_DEVICE,
@@ -86,7 +105,8 @@ async def on_turn_end_with_logging(request_text: str, response_text: str) -> boo
 app.on_turn_end = on_turn_end_with_logging
 
 # 启动 (无需唤醒词，直接开始监听)
-print(f"--- 启动成功：本地 Ollama (aoba-lite) 中文模式已就绪 (始终监听模式) ---")
+print(f"--- 启动成功：{LLM_SERVICE.upper()} 中文模式已就绪 (始终监听模式) ---")
+print(f"--- LLM 服务: {LLM_SERVICE.upper()} ---")
 print(f"--- 语音识别服务: {STT_SERVICE.upper()} ---")
 print(f"--- TTS 服务: GPT-SoVITS ---")
 print(f"--- 输入设备: {INPUT_DEVICE} | 输出设备: {OUTPUT_DEVICE} ---")
