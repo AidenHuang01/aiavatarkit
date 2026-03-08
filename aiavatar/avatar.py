@@ -27,9 +27,11 @@ class AvatarController:
         self.face_task = None
         self.parse = parser or self.parse_default
         self.requests = []
+        self.first_audio_logged = False
 
     async def start(self):
         # TODO: Stop exisiting tasks before start processing new requests
+        self.first_audio_logged = False
 
         while True:
             if len(self.requests) > 0:
@@ -83,7 +85,7 @@ class AvatarController:
             self.face_task = asyncio.create_task(
                 self.face_controller.set_face(avatar_request.face_name, avatar_request.face_duration)
             )
-        
+
         # Animation
         if avatar_request.animation_name:
             if self.animation_task:

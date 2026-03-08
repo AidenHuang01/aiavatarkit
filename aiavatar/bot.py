@@ -144,32 +144,59 @@ class AIAvatar:
         while True:
             request_text = ""
             response_text = ""
+
+            # Timing variables
+            stt_start_time = None
+            stt_duration = 0
+            llm_first_token_time = None
+            ttft = 0
+            tts_first_audio_time = None
+            tts_duration = 0
+
             try:
                 if request_on_start:
                     request_text = request_on_start
                     request_on_start = None
                 else:
+                    stt_start_time = asyncio.get_event_loop().time()
                     request_text = await self.request_listener.get_request()
+                    stt_end_time = asyncio.get_event_loop().time()
+
                     if not request_text:
                         continue  # Keep listening instead of breaking
 
-                logger.info(f"User: {request_text}")
-                logger.info("AI:")
+                    stt_duration = stt_end_time - stt_start_time
+
+                logger.info(f"👤 User: {request_text}")
 
                 avatar_task = asyncio.create_task(self.avatar_controller.start())
 
                 stream_buffer = ""
                 last_sentence_time = asyncio.get_event_loop().time()
                 sentence_timeout = 5.0  # 5秒超时
+                first_token_received = False
+                first_sentence_sent = False
+
+                llm_start_time = asyncio.get_event_loop().time()
 
                 async for t in self.chat_processor.chat(request_text):
+                    if not first_token_received:
+                        llm_first_token_time = asyncio.get_event_loop().time()
+                        ttft = llm_first_token_time - llm_start_time
+                        first_token_received = True
+
                     stream_buffer += t
                     for spc in self.split_chars:
                         stream_buffer = stream_buffer.replace(spc, spc + "|")
                     sp = stream_buffer.split("|")
-                    if len(sp) > 1: # >1 means `|` is found (splited at the end of sentence)
+                    if len(sp) > 1: # >1 means `|` is found (splited at end of sentence)
                         sentence = sp.pop(0)
                         stream_buffer = "".join(sp)
+
+                        if not first_sentence_sent:
+                            tts_first_audio_time = asyncio.get_event_loop().time()
+                            first_sentence_sent = True
+
                         self.avatar_controller.set_text(sentence)
                         response_text += sentence
                         last_sentence_time = asyncio.get_event_loop().time()  # 重置计时器
@@ -177,7 +204,7 @@ class AIAvatar:
                     # 检查是否超时
                     current_time = asyncio.get_event_loop().time()
                     if current_time - last_sentence_time > sentence_timeout:
-                        logger.warning(f"Response timeout: no complete sentence in {sentence_timeout}s, ending conversation")
+                        logger.warning(f"⚠️  Response timeout: no complete sentence in {sentence_timeout}s, ending conversation")
                         break
 
                     await asyncio.sleep(0.01)   # wait slightly in every loop not to use up CPU
@@ -188,9 +215,26 @@ class AIAvatar:
 
                 self.avatar_controller.set_stop()
                 await avatar_task
-            
+
+                # Calculate TTS duration
+                if tts_first_audio_time:
+                    tts_duration = tts_first_audio_time - llm_first_token_time if llm_first_token_time else 0
+
+                # Log consolidated timing stats
+                logger.info(f"🤖 AI: {response_text}")
+                timing_parts = []
+                if stt_duration > 0:
+                    timing_parts.append(f"STT: {stt_duration:.2f}s")
+                if ttft > 0:
+                    timing_parts.append(f"TTFT: {ttft:.2f}s")
+                if tts_duration > 0:
+                    timing_parts.append(f"TTS: {tts_duration:.2f}s")
+
+                if timing_parts:
+                    logger.info(f"📊 [TIMING] {' | '.join(timing_parts)}")
+
             except Exception as ex:
-                logger.error(f"Error at chatting loop: {str(ex)}\n{traceback.format_exc()}")
+                logger.error(f"❌ Error at chatting loop: {str(ex)}\n{traceback.format_exc()}")
 
             finally:
                 if await self.on_turn_end(request_text, response_text):
