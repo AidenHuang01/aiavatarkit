@@ -6,6 +6,10 @@ from config import GOOGLE_API_KEY, SONIOX_API_KEY
 from datetime import datetime
 import os
 
+# --- 音频设备配置 ---
+INPUT_DEVICE = 1   # 对应 CABLE Output (听 VRChat 里的声音)
+OUTPUT_DEVICE = 21  # 对应 CABLE Input (说话给 VRChat 听)
+
 # --- 创建日志目录和文件 ---
 log_dir = os.path.join(os.path.dirname(__file__), 'chat_logs')
 os.makedirs(log_dir, exist_ok=True)
@@ -45,7 +49,9 @@ if STT_SERVICE == "soniox":
         detection_timeout=10.0,
         lang="zh",
         rate=16000,
-        device_index=10  # 对应 CABLE Output (听 VRChat 里的声音)
+        device_index=INPUT_DEVICE,
+        enable_speaker_diarization=True,  # 启用说话者识别
+        primary_speaker_strategy="longest"  # 选择说话最多的人作为主要说话者
     )
 else:
     # 使用 Google 语音识别（默认）
@@ -56,10 +62,10 @@ else:
 speech_controller = GPTSoVITSSpeechController(
     base_url="http://localhost:9880",
     refer_wav_path=r"C:\Users\hyc97\models\GPT-SoVITS-v2pro-20250604-nvidia50\reference_audio\Feibi.wav",
-    prompt_text="在此之前，请您务必继续享受旅居拉古那的时光。",
+    prompt_text="在此之前,请您务必继续享受旅居拉古那的时光。",
     prompt_language="中文",
     text_language="中文",
-    device_index=21  # 对应 CABLE Input (说话给 VRChat 听)
+    device_index=OUTPUT_DEVICE
 )
 
 # --- 初始化 AIAvatar ---
@@ -68,9 +74,9 @@ app = AIAvatar(
     chat_processor=chat_processor_deepseek,
     speech_controller=speech_controller,
     request_listener=request_listener,  # 使用配置的语音识别服务
-    input_device=10,  # 对应 CABLE Output (听 VRChat 里的声音)
+    input_device=INPUT_DEVICE,
     language="zh-CN",  # 设置为中文
-    start_voice="猫娘系统初始化完毕，青叶已上线~主人",  # 启动时的回应
+    start_voice="猫娘系统初始化完毕,青叶已上线~和我对话吧主人",  # 启动时的回应
 )
 
 # --- 设置对话结束回调，记录日志 ---
