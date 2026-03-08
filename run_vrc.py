@@ -1,7 +1,8 @@
 from aiavatar import AIAvatar
 from aiavatar.processors.chatgpt import ChatGPTProcessor
 from aiavatar.speech.gptsovits import GPTSoVITSSpeechController
-from config import GOOGLE_API_KEY
+from aiavatar.listeners.soniox import SonioxVoiceRequestListener
+from config import GOOGLE_API_KEY, SONIOX_API_KEY
 from datetime import datetime
 import os
 
@@ -31,6 +32,25 @@ chat_processor_deepseek = ChatGPTProcessor(
     max_tokens=512,  # 设置最大生成 token 数
 )
 
+# --- 配置语音识别 ---
+# 选择语音识别服务: "soniox" 或 "google"
+STT_SERVICE = "soniox"  # 修改这里来切换语音识别服务
+
+if STT_SERVICE == "soniox":
+    # Soniox 语音识别
+    request_listener = SonioxVoiceRequestListener(
+        api_key=SONIOX_API_KEY,
+        volume_threshold=-50,
+        timeout=0.8,
+        detection_timeout=10.0,
+        lang="zh",
+        rate=16000,
+        device_index=10  # 对应 CABLE Output (听 VRChat 里的声音)
+    )
+else:
+    # 使用 Google 语音识别（默认）
+    request_listener = None  # AIAvatar 会自动使用 Google API
+
 # --- 配置 TTS 语音合成 ---
 # 使用 GPT-SoVITS TTS
 speech_controller = GPTSoVITSSpeechController(
@@ -45,11 +65,12 @@ speech_controller = GPTSoVITSSpeechController(
 # --- 初始化 AIAvatar ---
 app = AIAvatar(
     google_api_key=GOOGLE_API_KEY,
-    chat_processor=chat_processor_deepseek, # 替换掉你代码里的 chat_processor_dify
-    speech_controller=speech_controller,  # 使用配置的 TTS 服务
-    input_device=1,  # 对应 CABLE Output (听 VRChat 里的声音)
+    chat_processor=chat_processor_deepseek,
+    speech_controller=speech_controller,
+    request_listener=request_listener,  # 使用配置的语音识别服务
+    input_device=10,  # 对应 CABLE Output (听 VRChat 里的声音)
     language="zh-CN",  # 设置为中文
-    start_voice="青叶已上线~主人",  # 启动时的回应
+    start_voice="猫娘系统初始化完毕，青叶已上线~主人",  # 启动时的回应
 )
 
 # --- 设置对话结束回调，记录日志 ---
@@ -61,7 +82,8 @@ async def on_turn_end_with_logging(request_text: str, response_text: str) -> boo
 app.on_turn_end = on_turn_end_with_logging
 
 # 启动 (无需唤醒词，直接开始监听)
-print(f"--- 启动成功：本地 Ollama (aoba-cat) 中文模式已就绪 (始终监听模式) ---")
+print(f"--- 启动成功：本地 Ollama (aoba-lite) 中文模式已就绪 (始终监听模式) ---")
+print(f"--- 语音识别服务: {STT_SERVICE.upper()} ---")
 print(f"--- TTS 服务: GPT-SoVITS ---")
 print(f"--- 对话日志保存至: {log_file_path} ---")
 import asyncio
