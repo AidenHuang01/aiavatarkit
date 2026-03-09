@@ -3,13 +3,14 @@ from aiavatar.processors.chatgpt import ChatGPTProcessor
 from aiavatar.processors.grok import GrokProcessor
 from aiavatar.speech.gptsovits import GPTSoVITSSpeechController
 from aiavatar.listeners.soniox import SonioxVoiceRequestListener
+from aiavatar.listeners.soniox_streaming import SonioxStreamingVoiceRequestListener
 from config import GOOGLE_API_KEY, SONIOX_API_KEY, GROK_API_KEY
 from modelfile_config import parse_modelfile
 from datetime import datetime
 import os
 
 # --- 音频设备配置 ---
-INPUT_DEVICE = 10   # 对应 CABLE Output (听 VRChat 里的声音)
+INPUT_DEVICE = 1   # 对应 CABLE Output (听 VRChat 里的声音)
 OUTPUT_DEVICE = 21  # 对应 CABLE Input (说话给 VRChat 听)
 
 # --- 加载 Modelfile 配置 ---
@@ -56,11 +57,21 @@ else:
     raise ValueError(f"Unknown LLM service: {LLM_SERVICE}")
 
 # --- 配置语音识别 ---
-# 选择语音识别服务: "soniox" 或 "google"
-STT_SERVICE = "soniox"  # 修改这里来切换语音识别服务
+# 选择语音识别服务: "soniox", "soniox_streaming" 或 "google"
+STT_SERVICE = "soniox_streaming"  # 修改这里来切换语音识别服务
 
-if STT_SERVICE == "soniox":
-    # Soniox 语音识别
+if STT_SERVICE == "soniox_streaming":
+    # Soniox 实时流式语音识别 (低延迟)
+    request_listener = SonioxStreamingVoiceRequestListener(
+        api_key=SONIOX_API_KEY,
+        volume_threshold=-50,
+        silence_timeout=0.8,
+        lang="zh",
+        rate=16000,
+        device_index=INPUT_DEVICE
+    )
+elif STT_SERVICE == "soniox":
+    # Soniox 批量语音识别 (高延迟)
     request_listener = SonioxVoiceRequestListener(
         api_key=SONIOX_API_KEY,
         volume_threshold=-50,
