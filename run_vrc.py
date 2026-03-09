@@ -105,6 +105,8 @@ app = AIAvatar(
     input_device=INPUT_DEVICE,
     language="zh-CN",  # 设置为中文
     start_voice="猫娘系统初始化完毕，青叶已上线~主人",  # 启动时的回应
+    enable_interrupt=True,  # 启用中断功能
+    interrupt_hotkey="<ctrl>+<space>"  # 使用 Ctrl+Space 中断
 )
 
 # --- 设置对话结束回调，记录日志 ---
@@ -122,6 +124,7 @@ print(f"--- 语音识别服务: {STT_SERVICE.upper()} ---")
 print(f"--- TTS 服务: GPT-SoVITS ---")
 print(f"--- 输入设备: {INPUT_DEVICE} | 输出设备: {OUTPUT_DEVICE} ---")
 print(f"--- 对话日志保存至: {log_file_path} ---")
+print(f"--- ⚡ 按 Ctrl+Space 可随时中断 AI 回复 ---")
 import asyncio
 asyncio.run(app.start_chat())
 

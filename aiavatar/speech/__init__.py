@@ -23,6 +23,11 @@ class SpeechController(ABC):
     def is_speaking(self) -> bool:
         pass
 
+    @abstractmethod
+    def stop(self):
+        """Stop current speech playback"""
+        pass
+
 
 class VoiceClip:
     def __init__(self, text: str):
@@ -54,6 +59,7 @@ class SpeechControllerBase(SpeechController):
 
         self.voice_clips = {}
         self._is_speaking = False
+        self._current_playback_task = None
 
     async def download(self, voice: VoiceClip):
         raise NotImplementedError("`download` is not implemented")
@@ -83,15 +89,32 @@ class SpeechControllerBase(SpeechController):
             self._is_speaking = True
 
             if self.use_subprocess:
-                await self.sound_player.play_wave_on_subprocess(voice.audio_clip)
+                self._current_playback_task = asyncio.create_task(
+                    self.sound_player.play_wave_on_subprocess(voice.audio_clip)
+                )
+                await self._current_playback_task
             else:
-                await self.sound_player.play_wave(voice.audio_clip)
+                self._current_playback_task = asyncio.create_task(
+                    self.sound_player.play_wave(voice.audio_clip)
+                )
+                await self._current_playback_task
 
+        except asyncio.CancelledError:
+            self.logger.info("Speech playback cancelled")
+            raise
         except Exception as ex:
             self.logger.error(f"Error at speaking: {str(ex)}\n{traceback.format_exc()}")
 
         finally:
             self._is_speaking = False
+            self._current_playback_task = None
+
+    def stop(self):
+        """Stop current speech playback"""
+        self._is_speaking = False
+        if self._current_playback_task and not self._current_playback_task.done():
+            self._current_playback_task.cancel()
+            self.logger.info("Speech playback stopped")
 
     def clear_cache(self):
         self.voice_clips.clear()

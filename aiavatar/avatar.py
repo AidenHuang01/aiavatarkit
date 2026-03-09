@@ -28,12 +28,24 @@ class AvatarController:
         self.parse = parser or self.parse_default
         self.requests = []
         self.first_audio_logged = False
+        self._should_stop = False
+        self._current_speech_task = None
+        self.interrupt_handler = None  # Will be set by AIAvatar
 
     async def start(self):
         # TODO: Stop exisiting tasks before start processing new requests
         self.first_audio_logged = False
+        self._should_stop = False
 
         while True:
+            # Check for interrupt
+            if self._should_stop or (self.interrupt_handler and self.interrupt_handler.is_interrupted()):
+                if self.interrupt_handler and self.interrupt_handler.is_interrupted():
+                    self.logger.info("⚡ Avatar interrupted during playback")
+                    self.force_stop()
+                self.logger.info("Avatar controller stopped")
+                break
+
             if len(self.requests) > 0:
                 req = self.requests.pop(0)
                 if req is None:
@@ -77,6 +89,14 @@ class AvatarController:
     def set_stop(self):
         self.requests.append(None)
 
+    def force_stop(self):
+        """Force stop all avatar activities immediately"""
+        self._should_stop = True
+        self.requests.clear()
+        self.speech_controller.stop()
+        if self._current_speech_task and not self._current_speech_task.done():
+            self._current_speech_task.cancel()
+
     async def perform(self, avatar_request: AvatarRequest):
         # Face
         if avatar_request.face_name:
@@ -96,7 +116,15 @@ class AvatarController:
 
         # Speech
         self.logger.info(avatar_request.text_to_speech)
-        await self.speech_controller.speak(avatar_request.text_to_speech)
+        try:
+            self._current_speech_task = asyncio.create_task(
+                self.speech_controller.speak(avatar_request.text_to_speech)
+            )
+            await self._current_speech_task
+        except asyncio.CancelledError:
+            self.logger.info("Speech task cancelled")
+        finally:
+            self._current_speech_task = None
 
     def is_speaking(self) -> bool:
         return self.speech_controller.is_speaking()

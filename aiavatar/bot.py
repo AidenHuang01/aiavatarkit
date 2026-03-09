@@ -16,6 +16,8 @@ from .speech.voicevox import VoicevoxSpeechController
 from .animation import AnimationController, AnimationControllerDummy
 from .face import FaceController, FaceControllerDummy
 from .avatar import AvatarController
+# Interrupt handler
+from .interrupt import InterruptHandler
 
 logger = getLogger(__name__)
 logger.addHandler(NullHandler())
@@ -48,7 +50,9 @@ class AIAvatar:
         start_voice: str=None,
         split_chars: list=None,
         language: str="ja-JP",
-        verbose: bool=False
+        verbose: bool=False,
+        enable_interrupt: bool=True,
+        interrupt_hotkey: str="<ctrl>+<space>"
     ):
         # Audio Devices
         if audio_devices:
@@ -131,6 +135,14 @@ class AIAvatar:
         self.on_turn_end = self.on_turn_end_default
         self.chat_task = None
 
+        # Interrupt handler
+        self.interrupt_handler = None
+        if enable_interrupt:
+            self.interrupt_handler = InterruptHandler(hotkey=interrupt_hotkey)
+            self.interrupt_handler.start()
+            # Share interrupt handler with avatar controller
+            self.avatar_controller.interrupt_handler = self.interrupt_handler
+
     async def on_turn_end_default(self, request_text: str, response_text: str) -> bool:
         return False
 
@@ -169,6 +181,10 @@ class AIAvatar:
 
                 logger.info(f"👤 User: {request_text}")
 
+                # Reset interrupt flag at start of response
+                if self.interrupt_handler:
+                    self.interrupt_handler.reset()
+
                 avatar_task = asyncio.create_task(self.avatar_controller.start())
 
                 stream_buffer = ""
@@ -176,10 +192,17 @@ class AIAvatar:
                 sentence_timeout = 5.0  # 5秒超时
                 first_token_received = False
                 first_sentence_sent = False
+                interrupted = False
 
                 llm_start_time = asyncio.get_event_loop().time()
 
                 async for t in self.chat_processor.chat(request_text):
+                    # Check for interrupt FIRST before processing token
+                    if self.interrupt_handler and self.interrupt_handler.is_interrupted():
+                        logger.info("⚡ Response interrupted by user")
+                        interrupted = True
+                        break
+
                     if not first_token_received:
                         llm_first_token_time = asyncio.get_event_loop().time()
                         ttft = llm_first_token_time - llm_start_time
@@ -192,6 +215,12 @@ class AIAvatar:
                     if len(sp) > 1: # >1 means `|` is found (splited at end of sentence)
                         sentence = sp.pop(0)
                         stream_buffer = "".join(sp)
+
+                        # Check for interrupt AGAIN before sending to TTS
+                        if self.interrupt_handler and self.interrupt_handler.is_interrupted():
+                            logger.info("⚡ Response interrupted by user")
+                            interrupted = True
+                            break
 
                         if not first_sentence_sent:
                             tts_first_audio_time = asyncio.get_event_loop().time()
@@ -209,12 +238,31 @@ class AIAvatar:
 
                     await asyncio.sleep(0.01)   # wait slightly in every loop not to use up CPU
 
-                if stream_buffer:
-                    self.avatar_controller.set_text(stream_buffer)
-                    response_text += stream_buffer
+                # If interrupted, stop avatar immediately
+                if interrupted:
+                    # Consume the interrupt flag
+                    if self.interrupt_handler:
+                        self.interrupt_handler.reset()
 
-                self.avatar_controller.set_stop()
-                await avatar_task
+                    logger.info("🛑 Stopping all avatar activities...")
+                    # Force stop avatar controller
+                    self.avatar_controller.force_stop()
+                    # Cancel avatar task
+                    if not avatar_task.done():
+                        avatar_task.cancel()
+                        try:
+                            await avatar_task
+                        except asyncio.CancelledError:
+                            pass
+                    logger.info("🔇 Audio playback stopped, returning to listening mode")
+                else:
+                    # Normal completion
+                    if stream_buffer:
+                        self.avatar_controller.set_text(stream_buffer)
+                        response_text += stream_buffer
+
+                    self.avatar_controller.set_stop()
+                    await avatar_task
 
                 # Calculate TTS duration
                 if tts_first_audio_time:
